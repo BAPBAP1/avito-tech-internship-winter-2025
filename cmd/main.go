@@ -49,14 +49,11 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	
 	authHandler := handler.NewAuthHandler(authService)
 	r.POST("/auth", authHandler.Login)
 
-	
 	authMiddleware := handler.JWTAuthMiddleware(cfg.JWTSecret)
 
-	
 	authorized := r.Group("/api")
 	authorized.Use(authMiddleware)
 	{

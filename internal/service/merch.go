@@ -54,25 +54,19 @@ func (s *MerchService) PurchaseMerch(ctx context.Context, userID int, itemName s
 
 	user, err := userRepoTx.GetByID(ctx, userID)
 	if err != nil {
-		tx.Rollback()
 		return fmt.Errorf("failed to get user: %w", err)
 	}
 
 	if user.Coins < merchItem.Price {
-		tx.Rollback()
 		return ErrInsufficientFunds
 	}
 
 	newBalance := user.Coins - merchItem.Price
-	err = userRepoTx.UpdateCoins(ctx, userID, newBalance)
-	if err != nil {
-		tx.Rollback()
+	if err = userRepoTx.UpdateCoins(ctx, userID, newBalance); err != nil {
 		return fmt.Errorf("failed to update user coins: %w", err)
 	}
 
-	err = transactionRepoTx.CreatePurchase(ctx, userID, itemName, merchItem.Price)
-	if err != nil {
-		tx.Rollback()
+	if err = transactionRepoTx.CreatePurchase(ctx, userID, itemName, merchItem.Price); err != nil {
 		return fmt.Errorf("failed to record purchase: %w", err)
 	}
 
@@ -105,9 +99,7 @@ func (s *MerchService) CreatePurchaseForUser(ctx context.Context, userID int, it
 
 	transactionRepoTx := repository.NewTransactionRepository(tx)
 
-	err = transactionRepoTx.CreatePurchase(ctx, userID, itemName, merchItem.Price)
-	if err != nil {
-		tx.Rollback()
+	if err = transactionRepoTx.CreatePurchase(ctx, userID, itemName, merchItem.Price); err != nil {
 		return fmt.Errorf("failed to record purchase: %w", err)
 	}
 

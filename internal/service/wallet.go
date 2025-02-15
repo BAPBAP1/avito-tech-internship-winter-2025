@@ -11,7 +11,10 @@ import (
 	"github.com/BAPBAP1/avito-tech-internship-winter-2025/internal/repository"
 )
 
-var ErrInvalidAmount = errors.New("invalid amount")
+var (
+	ErrInvalidAmount     = errors.New("invalid amount")
+	ErrInsufficientFunds = errors.New("insufficient funds")
+)
 
 type WalletService struct {
 	userRepo        *repository.UserRepository
@@ -36,25 +39,26 @@ func (s *WalletService) Transfer(ctx context.Context, senderID, receiverID int, 
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
 
 	userRepoTx := repository.NewUserRepository(tx)
 	transactionRepoTx := repository.NewTransactionRepository(tx)
 
 	sender, err := userRepoTx.GetByID(ctx, senderID)
 	if err != nil {
-		tx.Rollback()
 		return fmt.Errorf("failed to get sender user: %w", err)
 	}
 
 	receiver, err := userRepoTx.GetByID(ctx, receiverID)
 	if err != nil {
-		tx.Rollback()
 		return fmt.Errorf("failed to get receiver user: %w", err)
 	}
 
 	if sender.Coins < amount {
-		tx.Rollback()
 		return ErrInsufficientFunds
 	}
 
@@ -62,21 +66,18 @@ func (s *WalletService) Transfer(ctx context.Context, senderID, receiverID int, 
 	receiverNewBalance := receiver.Coins + amount
 
 	if err := userRepoTx.UpdateCoins(ctx, senderID, senderNewBalance); err != nil {
-		tx.Rollback()
 		return fmt.Errorf("failed to update sender coins: %w", err)
 	}
 
 	if err := userRepoTx.UpdateCoins(ctx, receiverID, receiverNewBalance); err != nil {
-		tx.Rollback()
 		return fmt.Errorf("failed to update receiver coins: %w", err)
 	}
 
 	if err := transactionRepoTx.Create(ctx, senderID, receiverID, amount); err != nil {
-		tx.Rollback()
 		return fmt.Errorf("failed to record transaction: %w", err)
 	}
 
-	if err := tx.Commit(); err != nil {
+	if err = tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
@@ -108,17 +109,18 @@ func (s *WalletService) GetWalletHistory(ctx context.Context, userID int) ([]mod
 
 	var historyEntries []model.WalletHistoryEntry
 	for _, tx := range transactions {
-		var entry model.WalletHistoryEntry
-		entry.Amount = tx.Amount
-		entry.CreatedAt = tx.CreatedAt.Format(time.RFC3339)
+		entry := model.WalletHistoryEntry{
+			Amount:          tx.Amount,
+			CreatedAt:       tx.CreatedAt.Format(time.RFC3339),
+			CounterpartyID:  tx.SenderID,
+			TransactionType: "incoming",
+		}
 
 		if tx.SenderID == userID {
 			entry.TransactionType = "outgoing"
 			entry.CounterpartyID = tx.ReceiverID
-		} else {
-			entry.TransactionType = "incoming"
-			entry.CounterpartyID = tx.SenderID
 		}
+
 		historyEntries = append(historyEntries, entry)
 	}
 
