@@ -11,6 +11,7 @@ import (
 	"github.com/BAPBAP1/avito-tech-internship-winter-2025/internal/repository"
 )
 
+
 type AuthService struct {
 	userRepo  *repository.UserRepository
 	jwtSecret string

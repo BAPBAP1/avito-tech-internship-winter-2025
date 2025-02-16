@@ -38,7 +38,7 @@ func main() {
 
 	userRepo := repository.NewUserRepository(db)
 	transactionRepo := repository.NewTransactionRepository(db)
-	merchRepo := repository.NewMerchRepository()
+	merchRepo := repository.NewMerchRepository() 
 
 	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
 	walletService := service.NewWalletService(userRepo, transactionRepo, db)
@@ -49,11 +49,14 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	
 	authHandler := handler.NewAuthHandler(authService)
 	r.POST("/auth", authHandler.Login)
 
+	
 	authMiddleware := middleware.JWTAuthMiddleware(cfg.JWTSecret)
 
+	
 	authorized := r.Group("/api")
 	authorized.Use(authMiddleware)
 	{
@@ -65,7 +68,7 @@ func main() {
 		merchHandler := handler.NewMerchHandler(merchService)
 		authorized.GET("/merch", merchHandler.ListMerch)
 		authorized.POST("/purchase", merchHandler.PurchaseMerch)
-		authorized.GET("/purchases", merchHandler.ListPurchases)
+		authorized.GET("/purchases", merchHandler.ListPurchases) 
 	}
 
 	server := &http.Server{
