@@ -12,10 +12,13 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+
+	//"github.com/labstack/echo/middleware"
 	_ "github.com/lib/pq"
 
 	"github.com/BAPBAP1/avito-tech-internship-winter-2025/config"
 	"github.com/BAPBAP1/avito-tech-internship-winter-2025/internal/handler"
+	"github.com/BAPBAP1/avito-tech-internship-winter-2025/internal/middleware"
 	"github.com/BAPBAP1/avito-tech-internship-winter-2025/internal/repository"
 	"github.com/BAPBAP1/avito-tech-internship-winter-2025/internal/service"
 )
@@ -31,14 +34,13 @@ func main() {
 	}
 	defer db.Close()
 
-	// Run migrations
 	if err := runMigrations(db, cfg); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
 	userRepo := repository.NewUserRepository(db)
 	transactionRepo := repository.NewTransactionRepository(db)
-	merchRepo := repository.NewMerchRepository() // In-memory merch repository
+	merchRepo := repository.NewMerchRepository()
 
 	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
 	walletService := service.NewWalletService(userRepo, transactionRepo, db)
@@ -52,7 +54,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(authService)
 	r.POST("/auth", authHandler.Login)
 
-	authMiddleware := handler.JWTAuthMiddleware(cfg.JWTSecret)
+	authMiddleware := middleware.JWTAuthMiddleware(cfg.JWTSecret)
 
 	authorized := r.Group("/api")
 	authorized.Use(authMiddleware)
@@ -65,7 +67,7 @@ func main() {
 		merchHandler := handler.NewMerchHandler(merchService)
 		authorized.GET("/merch", merchHandler.ListMerch)
 		authorized.POST("/purchase", merchHandler.PurchaseMerch)
-		authorized.GET("/purchases", merchHandler.ListPurchases) // List user's purchases
+		authorized.GET("/purchases", merchHandler.ListPurchases)
 	}
 
 	server := &http.Server{
