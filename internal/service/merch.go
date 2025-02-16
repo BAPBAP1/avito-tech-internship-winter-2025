@@ -12,8 +12,7 @@ import (
 )
 
 var (
-	ErrMerchNotFound     = errors.New("merch not found")
-	ErrInsufficientFunds = errors.New("insufficient funds")
+	ErrMerchNotFound = errors.New("merch not found")
 )
 
 type MerchService struct {
@@ -58,7 +57,6 @@ func (s *MerchService) PurchaseMerch(ctx context.Context, userID int, itemName s
 		}
 	}()
 
-	
 	userRepoTx := repository.NewUserRepositoryWithTx(tx)
 	user, err := userRepoTx.GetByID(ctx, userID)
 	if err != nil {
