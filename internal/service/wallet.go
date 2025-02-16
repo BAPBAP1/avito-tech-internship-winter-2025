@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/BAPBAP1/avito-tech-internship-winter-2025/internal/model"
@@ -40,28 +41,34 @@ func (s *WalletService) Transfer(ctx context.Context, senderID, receiverID int, 
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err != nil {
-			tx.Rollback()
+		if p := recover(); p != nil || err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 		}
 	}()
 
-	userRepoTx := repository.NewUserRepository(tx)
-	transactionRepoTx := repository.NewTransactionRepository(tx)
+	// Используем репозитории с поддержкой транзакций
+	userRepoTx := repository.NewUserRepositoryWithTx(tx)
+	transactionRepoTx := repository.NewTransactionRepositoryWithTx(tx)
 
+	// Получаем отправителя и проверяем его баланс
 	sender, err := userRepoTx.GetByID(ctx, senderID)
 	if err != nil {
 		return fmt.Errorf("failed to get sender user: %w", err)
-	}
-
-	receiver, err := userRepoTx.GetByID(ctx, receiverID)
-	if err != nil {
-		return fmt.Errorf("failed to get receiver user: %w", err)
 	}
 
 	if sender.Coins < amount {
 		return ErrInsufficientFunds
 	}
 
+	// Получаем получателя
+	receiver, err := userRepoTx.GetByID(ctx, receiverID)
+	if err != nil {
+		return fmt.Errorf("failed to get receiver user: %w", err)
+	}
+
+	// Обновляем балансы
 	senderNewBalance := sender.Coins - amount
 	receiverNewBalance := receiver.Coins + amount
 
@@ -73,11 +80,13 @@ func (s *WalletService) Transfer(ctx context.Context, senderID, receiverID int, 
 		return fmt.Errorf("failed to update receiver coins: %w", err)
 	}
 
+	// Записываем транзакцию
 	if err := transactionRepoTx.Create(ctx, senderID, receiverID, amount); err != nil {
 		return fmt.Errorf("failed to record transaction: %w", err)
 	}
 
-	if err = tx.Commit(); err != nil {
+	// Коммитим транзакцию
+	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 

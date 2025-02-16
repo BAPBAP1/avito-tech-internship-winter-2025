@@ -11,14 +11,26 @@ import (
 
 type TransactionRepository struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 func NewTransactionRepository(db *sql.DB) *TransactionRepository {
 	return &TransactionRepository{db: db}
 }
 
+func NewTransactionRepositoryWithTx(tx *sql.Tx) *TransactionRepository {
+	return &TransactionRepository{tx: tx}
+}
+
 func (r *TransactionRepository) Create(ctx context.Context, senderID, receiverID int, amount int) error {
-	_, err := r.db.ExecContext(ctx,
+	var execContext func(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	if r.tx != nil {
+		execContext = r.tx.ExecContext
+	} else {
+		execContext = r.db.ExecContext
+	}
+
+	_, err := execContext(ctx,
 		"INSERT INTO transactions (sender_id, receiver_id, amount) VALUES ($1, $2, $3)",
 		senderID, receiverID, amount,
 	)
@@ -26,7 +38,14 @@ func (r *TransactionRepository) Create(ctx context.Context, senderID, receiverID
 }
 
 func (r *TransactionRepository) GetTransactionsByUserID(ctx context.Context, userID int) ([]model.Transaction, error) {
-	rows, err := r.db.QueryContext(ctx,
+	var queryContext func(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	if r.tx != nil {
+		queryContext = r.tx.QueryContext
+	} else {
+		queryContext = r.db.QueryContext
+	}
+
+	rows, err := queryContext(ctx,
 		`SELECT id, sender_id, receiver_id, amount, created_at
    FROM transactions
    WHERE sender_id = $1 OR receiver_id = $1
@@ -34,7 +53,7 @@ func (r *TransactionRepository) GetTransactionsByUserID(ctx context.Context, use
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return []model.Transaction{}, nil // No transactions found is not an error
+			return []model.Transaction{}, nil 
 		}
 		return nil, fmt.Errorf("failed to query transactions: %w", err)
 	}
@@ -57,7 +76,14 @@ func (r *TransactionRepository) GetTransactionsByUserID(ctx context.Context, use
 }
 
 func (r *TransactionRepository) CreatePurchase(ctx context.Context, userID int, itemName string, price int) error {
-	_, err := r.db.ExecContext(ctx,
+	var execContext func(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	if r.tx != nil {
+		execContext = r.tx.ExecContext
+	} else {
+		execContext = r.db.ExecContext
+	}
+
+	_, err := execContext(ctx,
 		"INSERT INTO purchases (user_id, item_name, price) VALUES ($1, $2, $3)",
 		userID, itemName, price,
 	)
@@ -65,7 +91,14 @@ func (r *TransactionRepository) CreatePurchase(ctx context.Context, userID int, 
 }
 
 func (r *TransactionRepository) GetPurchasesByUserID(ctx context.Context, userID int) ([]model.Purchase, error) {
-	rows, err := r.db.QueryContext(ctx,
+	var queryContext func(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	if r.tx != nil {
+		queryContext = r.tx.QueryContext
+	} else {
+		queryContext = r.db.QueryContext
+	}
+
+	rows, err := queryContext(ctx,
 		`SELECT id, user_id, item_name, price, purchased_at
    FROM purchases
    WHERE user_id = $1
@@ -73,7 +106,7 @@ func (r *TransactionRepository) GetPurchasesByUserID(ctx context.Context, userID
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return []model.Purchase{}, nil // No purchases found is not an error
+			return []model.Purchase{}, nil 
 		}
 		return nil, fmt.Errorf("failed to query purchases: %w", err)
 	}
@@ -86,7 +119,7 @@ func (r *TransactionRepository) GetPurchasesByUserID(ctx context.Context, userID
 		if err := rows.Scan(&p.ID, &p.UserID, &p.ItemName, &p.Price, &purchasedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan purchase: %w", err)
 		}
-		p.PurchasedAt = purchasedAt.Format(time.RFC3339) 
+		p.PurchasedAt = purchasedAt.Format(time.RFC3339)
 		purchases = append(purchases, p)
 	}
 

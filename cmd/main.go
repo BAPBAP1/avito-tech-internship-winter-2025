@@ -12,8 +12,6 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-
-	//"github.com/labstack/echo/middleware"
 	_ "github.com/lib/pq"
 
 	"github.com/BAPBAP1/avito-tech-internship-winter-2025/config"

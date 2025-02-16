@@ -5,13 +5,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/BAPBAP1/avito-tech-internship-winter-2025/internal/model"
 	"github.com/BAPBAP1/avito-tech-internship-winter-2025/internal/repository"
 )
 
-var ErrMerchNotFound = errors.New("merch not found")
-var ErrInsufficientFunds = errors.New("insufficient funds")
+var (
+	ErrMerchNotFound     = errors.New("merch not found")
+	ErrInsufficientFunds = errors.New("insufficient funds")
+)
 
 type MerchService struct {
 	merchRepo       *repository.MerchRepository
@@ -47,11 +50,16 @@ func (s *MerchService) PurchaseMerch(ctx context.Context, userID int, itemName s
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if p := recover(); p != nil || err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
+		}
+	}()
 
-	userRepoTx := repository.NewUserRepository(tx)
-	transactionRepoTx := repository.NewTransactionRepository(tx)
-
+	
+	userRepoTx := repository.NewUserRepositoryWithTx(tx)
 	user, err := userRepoTx.GetByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
@@ -66,6 +74,7 @@ func (s *MerchService) PurchaseMerch(ctx context.Context, userID int, itemName s
 		return fmt.Errorf("failed to update user coins: %w", err)
 	}
 
+	transactionRepoTx := repository.NewTransactionRepositoryWithTx(tx)
 	if err = transactionRepoTx.CreatePurchase(ctx, userID, itemName, merchItem.Price); err != nil {
 		return fmt.Errorf("failed to record purchase: %w", err)
 	}
@@ -95,10 +104,15 @@ func (s *MerchService) CreatePurchaseForUser(ctx context.Context, userID int, it
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if p := recover(); p != nil || err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
+		}
+	}()
 
-	transactionRepoTx := repository.NewTransactionRepository(tx)
-
+	transactionRepoTx := repository.NewTransactionRepositoryWithTx(tx)
 	if err = transactionRepoTx.CreatePurchase(ctx, userID, itemName, merchItem.Price); err != nil {
 		return fmt.Errorf("failed to record purchase: %w", err)
 	}
